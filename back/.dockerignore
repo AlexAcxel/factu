@@ -1,0 +1,9 @@
+vendor/
+var/cache/
+var/log/
+var/sessions/
+.env.local
+.env.*.local
+.git/
+.gitignore
+Dockerfile

@@ -1,0 +1,79 @@
+services:
+  back:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: factu_back
+    restart: unless-stopped
+    volumes:
+      - ./back:/var/www/html
+      - back_vendor:/var/www/html/vendor
+    environment:
+      APP_ENV: dev
+      APP_SECRET: ${APP_SECRET:-changeme_secret_32chars_minimum}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-factu}:${POSTGRES_PASSWORD:-factu_password}@db:5432/${POSTGRES_DB:-factu_db}?serverVersion=16&charset=utf8
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - factu_network
+
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    container_name: factu_front
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./front:/app
+      - front_node_modules:/app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8081
+    networks:
+      - factu_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: factu_nginx
+    restart: unless-stopped
+    ports:
+      - "8081:80"   # back Symfony
+    volumes:
+      - ./back:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - back
+      - front
+    networks:
+      - factu_network
+
+  db:
+    image: postgres:16-alpine
+    container_name: factu_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-factu_db}
+      POSTGRES_USER: ${POSTGRES_USER:-factu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-factu_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-factu} -d ${POSTGRES_DB:-factu_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - factu_network
+
+volumes:
+  db_data:
+  back_vendor:
+  front_node_modules:
+
+networks:
+  factu_network:
+    driver: bridge
